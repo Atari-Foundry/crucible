@@ -1,0 +1,41 @@
+name: Auto-Merge to Main
+
+# This workflow automatically merges to main after successful build
+# Only runs on non-main branches (develop, feature/*, fix/*)
+# Requires branch protection to be set up in GitHub settings
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - develop
+      - 'feature/*'
+      - 'fix/*'
+
+jobs:
+  auto-merge:
+    name: Auto-Merge to Main
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch != 'main' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Merge to main
+      run: |
+        git checkout main
+        git merge ${{ github.event.workflow_run.head_branch }} --no-edit
+        git push origin main
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
