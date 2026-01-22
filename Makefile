@@ -297,8 +297,16 @@ github-release:
 
 # Internal target: Build and create GitHub release
 # This is called after git operations are complete
-github-release-build: release
+github-release-build:
 	@echo ""; \
+	echo "=== Cleaning release directory ==="; \
+	rm -rf $(RELEASE_DIR)/crucible-*; \
+	rm -f $(RELEASE_DIR)/notes.md; \
+	echo "  ✓ Release directory cleaned"; \
+	echo ""; \
+	echo "=== Building release binaries ==="; \
+	$(MAKE) release; \
+	echo ""; \
 	echo "=== Creating GitHub release ==="; \
 	if ! command -v gh >/dev/null 2>&1; then \
 		echo "  ✗ GitHub CLI (gh) not found. Please install it:"; \
@@ -404,24 +412,45 @@ github-release-build: release
 	echo "  Creating release $$VERSION (prerelease: $$IS_PRERELEASE)..."; \
 	echo ""; \
 	echo "Creating/verifying git tag..."; \
-	if ! git rev-parse "$$VERSION" >/dev/null 2>&1; then \
+	CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
+	if [ "$$CURRENT_BRANCH" != "main" ]; then \
+		echo "  ⚠ Warning: Not on main branch (currently on $$CURRENT_BRANCH)"; \
+		echo "     Tag will be created on current branch"; \
+	fi; \
+	TAG_EXISTS_LOCAL=$$(git rev-parse "$$VERSION" >/dev/null 2>&1 && echo "yes" || echo "no"); \
+	TAG_EXISTS_REMOTE=$$(git ls-remote --tags origin "$$VERSION" >/dev/null 2>&1 && echo "yes" || echo "no"); \
+	CURRENT_COMMIT=$$(git rev-parse HEAD); \
+	if [ "$$TAG_EXISTS_LOCAL" = "yes" ]; then \
+		TAG_COMMIT=$$(git rev-parse "$$VERSION" 2>/dev/null); \
+		if [ "$$TAG_COMMIT" != "$$CURRENT_COMMIT" ]; then \
+			echo "  ⚠ Warning: Tag $$VERSION exists but points to different commit"; \
+			echo "     Tag points to: $$TAG_COMMIT"; \
+			echo "     Current HEAD:  $$CURRENT_COMMIT"; \
+			echo "     Deleting local tag to recreate..."; \
+			git tag -d "$$VERSION" 2>/dev/null || true; \
+			TAG_EXISTS_LOCAL="no"; \
+		fi; \
+	fi; \
+	if [ "$$TAG_EXISTS_LOCAL" = "no" ]; then \
 		echo "  Creating git tag $$VERSION..."; \
 		git tag -a "$$VERSION" -m "Release $$VERSION" || { \
-			echo "  ⚠ Failed to create tag"; \
+			echo "  ✗ Failed to create tag"; \
 			exit 1; \
 		}; \
-		git push origin "$$VERSION" 2>/dev/null || { \
-			echo "  ⚠ Failed to push tag to remote"; \
-			echo "     You may need to push manually: git push origin $$VERSION"; \
+		echo "  ✓ Tag created locally"; \
+	fi; \
+	if [ "$$TAG_EXISTS_REMOTE" = "no" ]; then \
+		echo "  Pushing tag to remote..."; \
+		git push origin "$$VERSION" || { \
+			echo "  ✗ Failed to push tag to remote"; \
+			echo "     Tag exists locally but not on remote."; \
+			echo "     Please push manually: git push origin $$VERSION"; \
+			echo "     Or delete local tag and retry: git tag -d $$VERSION"; \
+			exit 1; \
 		}; \
-	else \
-		echo "  Tag $$VERSION already exists locally"; \
-		if ! git ls-remote --tags origin "$$VERSION" >/dev/null 2>&1; then \
-			echo "  Pushing tag to remote..."; \
-			git push origin "$$VERSION" 2>/dev/null || { \
-				echo "  ⚠ Failed to push tag to remote"; \
-			}; \
-		fi; \
+		echo "  ✓ Tag pushed to remote"; \
+	elif [ "$$TAG_EXISTS_LOCAL" = "yes" ]; then \
+		echo "  ✓ Tag $$VERSION already exists on remote"; \
 	fi; \
 	echo ""; \
 	echo "Renaming release files to include version..."; \
@@ -475,6 +504,14 @@ github-release-build: release
 			echo "  ✗ Missing: $$file"; \
 		fi; \
 	done; \
+	echo ""; \
+	echo "Verifying tag exists on remote..."; \
+	if ! git ls-remote --tags origin "$$VERSION" >/dev/null 2>&1; then \
+		echo "  ✗ Tag $$VERSION does not exist on remote"; \
+		echo "     Please push the tag first: git push origin $$VERSION"; \
+		exit 1; \
+	fi; \
+	echo "  ✓ Tag $$VERSION exists on remote"; \
 	echo ""; \
 	echo "Uploading release files..."; \
 	gh release create "$$VERSION" \
