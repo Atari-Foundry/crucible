@@ -1,7 +1,7 @@
-name: Auto-Merge to Main
+name: Merge develop to main
 
-# This workflow automatically merges develop branch to main after successful build
-# Triggers when CI completes successfully on the develop branch
+# This workflow automatically merges develop branch to main after successful CI
+# Waits for the CI workflow to complete successfully
 
 on:
   workflow_run:
@@ -12,8 +12,8 @@ on:
       - develop
 
 jobs:
-  auto-merge:
-    name: Auto-Merge develop to main
+  merge-to-main:
+    name: Merge to main
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' }}
     
@@ -32,6 +32,7 @@ jobs:
     - name: Merge develop to main
       run: |
         git checkout main
+        git pull origin main
         git merge develop --no-edit -m "Auto-merge from develop branch [skip ci]"
         git push origin main
       env:

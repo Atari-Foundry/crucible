@@ -6,50 +6,61 @@ This directory contains GitHub Actions workflows for automated CI/CD.
 
 ### `ci.yml` - Continuous Integration
 - **Triggers**: Push to `main`/`develop`, Pull Requests
-- **Purpose**: Build and test on multiple platforms (Linux, Windows, macOS)
+- **Purpose**: Basic verification only (Linux builds for CI)
 - **Actions**:
-  - Builds with GCC and Clang on Linux
-  - Builds on Windows with MinGW
-  - Builds on macOS
+  - Builds with GCC and Clang on Linux (for verification)
   - Runs test suite
   - Verifies executable works
+- **Note**: All release builds are done locally. CI only verifies code compiles and tests pass.
 
-### `release.yml` - Release Creation
-- **Triggers**: 
-  - Push to `main` branch
-  - Push of version tags (v*)
-  - Manual workflow dispatch
-- **Purpose**: Create GitHub releases with build artifacts
-- **Actions**:
-  - Builds for Linux, Windows, macOS
-  - Creates release artifacts
-  - Generates release notes from CHANGELOG
-  - Creates GitHub release
+### `release.yml` - Release Creation (Disabled)
+- **Status**: ⚠️ Disabled - Releases are created locally
+- **Purpose**: This workflow is disabled. Releases are built locally and uploaded using `make github-release`
+- **Local Release Process**:
+  1. Build all platforms: `make release`
+  2. Create GitHub release: `make github-release [VERSION=v1.2.3]`
+- **See**: [CONTRIBUTING.md](../../CONTRIBUTING.md) for release instructions
 
-### `auto-merge.yml` - Auto-Merge to Main
-- **Triggers**: After successful CI build on `develop`, `feature/*`, or `fix/*` branches
-- **Purpose**: Automatically merge to main after successful build
+### `auto-merge.yml` - Auto-Merge develop to main
+- **Triggers**: After successful CI build on `develop` branch
+- **Purpose**: Automatically merge `develop` branch to `main` after successful build
 - **Actions**:
-  - Merges branch to main
-  - Triggers release workflow
+  - Waits for CI to complete successfully
+  - Merges `develop` to `main`
+  - Triggers release workflow on main
 - **Note**: Requires branch protection and workflow permissions to be configured
+
+### `merge-develop.yml` - Alternative Merge Workflow
+- **Triggers**: Push to `develop` branch
+- **Purpose**: Alternative approach that waits for CI then merges
+- **Actions**:
+  - Waits for CI workflow to complete
+  - Merges `develop` to `main` if CI succeeds
 
 ## Usage
 
-### Automatic Releases
-When code is pushed to `main`, a release is automatically created.
+### Creating Releases
 
-### Manual Releases
-1. Go to Actions → Release → Run workflow
-2. Enter version (e.g., `v1.0.0`)
-3. Workflow will build and create release
+Releases are created **locally** using the Makefile:
 
-### Tagged Releases
-Push a tag to trigger a full release:
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+# Build all platforms
+make release
+
+# Create GitHub release (auto-detects version or specify with VERSION=v1.2.3)
+make github-release
 ```
+
+The `make github-release` command will:
+- Build binaries for Linux (amd64, arm64), Windows (x86_64), and macOS (x86_64, arm64)
+- Rename files to include version number
+- Generate release notes from CHANGELOG.md
+- Create a GitHub release with all binaries
+
+**Prerequisites**:
+- Docker (for macOS builds)
+- GitHub CLI (`gh`) installed and authenticated
+- Cross-compilation tools (or Docker for macOS)
 
 ## Permissions
 

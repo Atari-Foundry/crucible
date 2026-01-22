@@ -1,0 +1,49 @@
+# Multi-stage Dockerfile for building crucible releases
+# Usage:
+#   docker build -f Dockerfile.release -t crucible-builder .
+#   docker run --rm -v $(pwd)/release:/workspace/release crucible-builder
+
+FROM ubuntu:22.04 AS base
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    gcc-aarch64-linux-gnu \
+    mingw-w64 \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Copy source code
+COPY . .
+
+# Build stage for Linux amd64
+FROM base AS linux-amd64
+RUN make clean && \
+    make CC=gcc CFLAGS="-Iccan -O3 -Wall -flto" BDIR=build-linux-amd64 TARGET=build-linux-amd64/crucible
+
+# Build stage for Linux arm64
+FROM base AS linux-arm64
+RUN make clean && \
+    make CC=aarch64-linux-gnu-gcc CFLAGS="-Iccan -O3 -Wall -flto" BDIR=build-linux-arm64 TARGET=build-linux-arm64/crucible
+
+# Build stage for Windows x86_64
+FROM base AS windows-x86_64
+RUN make clean && \
+    make CC=x86_64-w64-mingw32-gcc CFLAGS="-Iccan -O3 -Wall -flto" BDIR=build-windows-x86_64 TARGET=build-windows-x86_64/crucible.exe
+
+# Final stage to collect all binaries
+FROM base AS release
+COPY --from=linux-amd64 /workspace/build-linux-amd64/crucible /workspace/release/crucible-linux-amd64
+COPY --from=linux-arm64 /workspace/build-linux-arm64/crucible /workspace/release/crucible-linux-arm64
+COPY --from=windows-x86_64 /workspace/build-windows-x86_64/crucible.exe /workspace/release/crucible-windows-x86_64.exe
+
+RUN chmod +x /workspace/release/crucible-linux-amd64 && \
+    chmod +x /workspace/release/crucible-linux-arm64
+
+CMD ["ls", "-lh", "/workspace/release/"]

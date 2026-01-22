@@ -1,5 +1,8 @@
 name: CI
 
+# CI workflow for basic verification only
+# All builds are done locally - see CONTRIBUTING.md for build instructions
+
 on:
   push:
     branches: [ main, develop ]
@@ -7,8 +10,8 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  build:
-    name: Build and Test
+  verify:
+    name: Verify (Linux)
     runs-on: ubuntu-latest
     
     strategy:
@@ -33,46 +36,6 @@ jobs:
         else
           make
         fi
-    
-    - name: Run tests
-      run: make test
-    
-    - name: Check executable
-      run: |
-        ./build/crucible -h
-        test -f build/crucible
-
-  build-windows:
-    name: Build (Windows)
-    runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install MinGW
-      uses: egor-tensin/setup-mingw@v2
-      with:
-        platform: x64
-    
-    - name: Build
-      run: |
-        make CC=x86_64-w64-mingw32-gcc
-    
-    - name: Check executable
-      run: |
-        if (Test-Path build\crucible.exe) { Write-Host "Build successful" } else { exit 1 }
-
-  build-macos:
-    name: Build (macOS)
-    runs-on: macos-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Build
-      run: make
     
     - name: Run tests
       run: make test

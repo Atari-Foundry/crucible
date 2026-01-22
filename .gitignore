@@ -1,1 +1,30 @@
+# Build artifacts
 build/
+release/
+build-*/
+
+# macOS SDK files
+MacOSX.sdk.tar.xz
+MacOSX*.sdk.tar.xz
+*.sdk.tar.xz
+
+# macOS cross-compilation tools
+MACOS_XCOMP/
+
+# Editor directories
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.orig
