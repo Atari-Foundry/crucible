@@ -4,11 +4,11 @@ This document describes the automated CI/CD pipeline for crucible.
 
 ## Overview
 
-The project uses GitHub Actions for continuous integration and deployment. The workflow is:
+The project uses GitHub Actions for continuous integration. Releases are created locally. The workflow is:
 
 1. **Build & Test** - On every push/PR, build and test on multiple platforms
 2. **Auto-Merge** - (Optional) Automatically merge to main after successful build
-3. **Release** - Automatically create GitHub release when code is merged to main
+3. **Release** - Created locally using `make github-release` (see [CONTRIBUTING.md](../CONTRIBUTING.md))
 
 ## Workflows
 
@@ -27,22 +27,23 @@ The project uses GitHub Actions for continuous integration and deployment. The w
 
 **Status:** Build status is shown on PRs and commits.
 
-### Release Workflow (`release.yml`)
+### Release Process
 
-**Triggers:**
-- Push to `main` branch (automatic release)
-- Push of version tags (e.g., `v1.0.0`)
-- Manual workflow dispatch
+**Status:** ⚠️ Releases are created **locally**, not in CI
 
-**Actions:**
-- Builds for Linux, Windows, macOS
-- Creates release artifacts
-- Generates release notes from CHANGELOG
-- Creates GitHub release with binaries
+**Process:**
+1. Build all platforms: `make release`
+2. Create GitHub release: `make github-release [VERSION=v1.2.3]`
+
+**The `make github-release` command:**
+- Builds binaries for Linux (amd64, arm64), Windows (x86_64), and macOS (x86_64, arm64)
+- Renames files to include version number (e.g., `crucible-1.2.3-linux-amd64`)
+- Generates release notes from CHANGELOG.md
+- Creates a GitHub release with all binaries
 
 **Versioning:**
-- Automatic: `vYYYY.MM.DD-<commit-hash>` (e.g., `v2026.01.21-a1b2c3d`)
-- Tagged: Uses tag name (e.g., `v1.0.0`)
+- Auto-detects from git tags, or specify with `VERSION=v1.2.3`
+- See [CONTRIBUTING.md](../CONTRIBUTING.md) for details
 
 ### Auto-Merge Workflow (`auto-merge.yml`)
 
@@ -51,7 +52,6 @@ The project uses GitHub Actions for continuous integration and deployment. The w
 
 **Actions:**
 - Automatically merges branch to `main`
-- Triggers release workflow
 
 **Note:** This requires proper branch protection settings in GitHub.
 
@@ -93,28 +93,33 @@ git push origin test-ci
 # Then release workflow will create a release
 ```
 
-## Manual Release
+## Creating Releases
 
-To create a manual release:
-
-1. Go to Actions → Release
-2. Click "Run workflow"
-3. Enter version (e.g., `v1.0.0`)
-4. Click "Run workflow"
-
-Or push a tag:
+Releases are created **locally** using the Makefile:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+# Build all platforms
+make release
+
+# Create GitHub release (auto-detects version or specify with VERSION=v1.2.3)
+make github-release
 ```
+
+**Prerequisites:**
+- Docker (for macOS builds)
+- GitHub CLI (`gh`) installed and authenticated
+- Cross-compilation tools (or Docker for macOS)
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed release instructions.
 
 ## Release Artifacts
 
-Each release includes:
-- `crucible-linux-x86_64` - Linux binary
-- `crucible-windows-x86_64.exe` - Windows binary
-- `crucible-macos-x86_64` - macOS binary
+Each release includes versioned binaries:
+- `crucible-<version>-linux-amd64` - Linux amd64 binary
+- `crucible-<version>-linux-arm64` - Linux arm64 binary
+- `crucible-<version>-windows-x86_64.exe` - Windows binary
+- `crucible-<version>-macos-x86_64` - macOS Intel binary
+- `crucible-<version>-macos-arm64` - macOS Apple Silicon binary
 
 ## Troubleshooting
 
@@ -132,23 +137,16 @@ Each release includes:
 
 ### Release Not Created
 
-- Verify push was to `main` branch
-- Check workflow permissions
-- Review release workflow logs
+- Ensure you've built all platforms: `make release`
+- Verify GitHub CLI is installed and authenticated: `gh auth status`
+- Check that binaries exist in `release/` directory
+- Review Makefile output for errors
 
 ## Customization
 
-### Change Release Triggers
+### Release Workflow
 
-Edit `.github/workflows/release.yml`:
-
-```yaml
-on:
-  push:
-    branches:
-      - main
-      - release/*  # Add custom branches
-```
+The release workflow (`.github/workflows/release.yml`) is disabled. Releases are created locally using `make github-release`. To modify the release process, edit the `github-release` target in the `Makefile`.
 
 ### Disable Auto-Merge
 

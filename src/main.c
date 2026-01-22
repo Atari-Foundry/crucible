@@ -17,6 +17,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "atari.h"
+#include "athost.h"
 #include "sim65.h"
 #include <getopt.h>
 #include <inttypes.h>

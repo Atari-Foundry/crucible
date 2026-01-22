@@ -24,9 +24,12 @@ LDLIBS=-lm
 
 BDIR=build
 ODIR=$(BDIR)/obj
-TARGET=$(BDIR)/crucible
+# Determine executable extension based on compiler
+TARGET_EXT := $(if $(findstring mingw,$(CC)),.exe,)
+TARGET=$(BDIR)/crucible$(TARGET_EXT)
 
-.PHONY: all clean help test
+RELEASE_DIR=release
+.PHONY: all clean help test release release-docker release-linux-amd64 release-linux-arm64 release-windows-x86_64 release-macos-x86_64 release-macos-arm64 release-macos github-release
 
 all: $(TARGET)
 
@@ -34,13 +37,23 @@ help:
 	@echo "crucible - Small 6502 simulator with Atari 8bit bios"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  all     - Build the crucible executable (default)"
-	@echo "  clean   - Remove all build artifacts and test files"
-	@echo "  test    - Run test programs"
-	@echo "  help    - Show this help message"
+	@echo "  all                  - Build the crucible executable (default)"
+	@echo "  clean                - Remove all build artifacts and test files"
+	@echo "  test                 - Run test programs"
+	@echo "  release              - Build release binaries for all platforms"
+	@echo "  release-docker       - Build releases using Docker (alternative)"
+	@echo "  release-linux-amd64  - Build Linux amd64 binary"
+	@echo "  release-linux-arm64  - Build Linux arm64 binary"
+	@echo "  release-windows-x86_64 - Build Windows x86_64 binary"
+	@echo "  release-macos        - Build macOS binaries (Intel + Apple Silicon) using Docker"
+	@echo "  release-macos-x86_64 - Build macOS Intel binary using Docker"
+	@echo "  release-macos-arm64  - Build macOS Apple Silicon binary using Docker"
+	@echo "  github-release       - Build and create GitHub release (requires gh CLI)"
+	@echo "  help                 - Show this help message"
 	@echo ""
 	@echo "Build output: $(TARGET)"
 	@echo "Object files: $(ODIR)/"
+	@echo "Release output: $(RELEASE_DIR)/"
 
 test: $(TARGET)
 	@echo "Running crucible tests..."
@@ -73,11 +86,256 @@ SRC=\
 OBJS=$(SRC:src/%.c=$(ODIR)/%.o)
 
 $(TARGET): $(OBJS) | $(BDIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
 	rm -rf $(BDIR)
+	rm -rf $(RELEASE_DIR)
 	rm -f testfiles/*.xex testfiles/*.atr testfiles/TEST.TXT
+
+# Release builds
+release: release-linux-amd64 release-linux-arm64 release-windows-x86_64
+	@echo ""
+	@echo "Release builds completed:"
+	@ls -lh $(RELEASE_DIR)/
+
+# macOS builds (require Docker and macOS SDK)
+release-macos: release-macos-x86_64 release-macos-arm64
+	@echo ""
+	@echo "macOS builds completed:"
+	@ls -lh $(RELEASE_DIR)/crucible-macos-* 2>/dev/null || echo "  No macOS binaries found"
+
+release-macos-x86_64:
+	@echo "Building macOS Intel (x86_64) using Docker..."
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "  ✗ Docker not found. Please install Docker."; \
+		exit 1; \
+	fi
+	@mkdir -p $(RELEASE_DIR)
+	@echo "  Using macos-cross-compiler Docker image..."
+	@docker run --platform=linux/amd64 --rm \
+		-v $(CURDIR):/workspace \
+		-v $(CURDIR)/$(RELEASE_DIR):/workspace/release \
+		-w /workspace \
+		ghcr.io/shepherdjerred/macos-cross-compiler:latest \
+		sh -c " \
+			rm -rf build-macos-x86_64 && \
+			make CC=x86_64-apple-darwin24-gcc \
+			     CFLAGS=\"-Iccan -O3 -Wall -flto\" \
+			     LDLIBS=\"-lm\" \
+			     BDIR=build-macos-x86_64 \
+			     TARGET=build-macos-x86_64/crucible && \
+			cp build-macos-x86_64/crucible release/crucible-macos-x86_64 && \
+			chmod +x release/crucible-macos-x86_64 && \
+			echo '  ✓ macOS Intel build complete' \
+		" || echo "  ⚠ macOS Intel build may have failed. Check Docker output above."
+
+release-macos-arm64:
+	@echo "Building macOS Apple Silicon (arm64) using Docker..."
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "  ✗ Docker not found. Please install Docker."; \
+		exit 1; \
+	fi
+	@mkdir -p $(RELEASE_DIR)
+	@echo "  Using macos-cross-compiler Docker image..."
+	@docker run --platform=linux/amd64 --rm \
+		-v $(CURDIR):/workspace \
+		-v $(CURDIR)/$(RELEASE_DIR):/workspace/release \
+		-w /workspace \
+		ghcr.io/shepherdjerred/macos-cross-compiler:latest \
+		sh -c " \
+			rm -rf build-macos-arm64 && \
+			make CC=aarch64-apple-darwin24-gcc \
+			     CFLAGS=\"-Iccan -O3 -Wall -flto\" \
+			     LDLIBS=\"-lm\" \
+			     BDIR=build-macos-arm64 \
+			     TARGET=build-macos-arm64/crucible && \
+			cp build-macos-arm64/crucible release/crucible-macos-arm64 && \
+			chmod +x release/crucible-macos-arm64 && \
+			echo '  ✓ macOS Apple Silicon build complete' \
+		" || echo "  ⚠ macOS Apple Silicon build may have failed. Check Docker output above."
+
+# Alternative: Build releases using Docker (if cross-compilers are not available)
+release-docker:
+	@mkdir -p $(RELEASE_DIR)
+	@echo "Building releases using Docker..."
+	@docker build -f Dockerfile.release -t crucible-builder .
+	@docker run --rm -v $(CURDIR)/$(RELEASE_DIR):/workspace/release crucible-builder
+	@echo ""
+	@echo "Docker release builds completed:"
+	@ls -lh $(RELEASE_DIR)/
+
+# Create GitHub release with all binaries
+# Usage: make github-release [VERSION=v1.2.3]
+github-release: release
+	@echo ""; \
+	echo "Creating GitHub release..."; \
+	if ! command -v gh >/dev/null 2>&1; then \
+		echo "  ✗ GitHub CLI (gh) not found. Please install it:"; \
+		echo "     https://cli.github.com/"; \
+		exit 1; \
+	fi; \
+	if ! gh auth status >/dev/null 2>&1; then \
+		echo "  ✗ Not authenticated with GitHub. Please run: gh auth login"; \
+		exit 1; \
+	fi; \
+	echo "  ✓ GitHub CLI found and authenticated"; \
+	echo ""; \
+	echo "Determining version..."; \
+	VERSION=$$( \
+		if [ -n "$(VERSION)" ]; then \
+			echo "$(VERSION)" | sed 's/^v*/v/'; \
+		elif git describe --tags --exact-match >/dev/null 2>&1; then \
+			git describe --tags --exact-match; \
+		else \
+			LATEST_TAG=$$(git describe --tags --abbrev=0 2>/dev/null); \
+			if [ -n "$$LATEST_TAG" ]; then \
+				MAJOR=$$(echo $$LATEST_TAG | sed 's/^v//' | cut -d. -f1); \
+				MINOR=$$(echo $$LATEST_TAG | sed 's/^v//' | cut -d. -f2); \
+				PATCH=$$(echo $$LATEST_TAG | sed 's/^v//' | cut -d. -f3); \
+				PATCH=$$((PATCH + 1)); \
+				echo "v$$MAJOR.$$MINOR.$$PATCH"; \
+			else \
+				echo "v1.0.0"; \
+			fi; \
+		fi \
+	); \
+	if [ -n "$(VERSION)" ]; then \
+		echo "  Using specified version: $$VERSION"; \
+	elif git describe --tags --exact-match >/dev/null 2>&1; then \
+		echo "  Using current tag: $$VERSION"; \
+	else \
+		LATEST_TAG=$$(git describe --tags --abbrev=0 2>/dev/null); \
+		if [ -n "$$LATEST_TAG" ]; then \
+			echo "  Auto-incremented from latest tag: $$LATEST_TAG -> $$VERSION"; \
+		else \
+			echo "  No tags found, using: $$VERSION"; \
+		fi; \
+	fi; \
+	echo ""; \
+	echo "Creating release notes..."; \
+	mkdir -p $(RELEASE_DIR); \
+	if [ -f docs/CHANGELOG.md ]; then \
+		awk '/^## \[/{p=0} /^## \[Unreleased\]/{p=1; next} p' docs/CHANGELOG.md > $(RELEASE_DIR)/notes.md 2>/dev/null || \
+		echo "## Changes" > $(RELEASE_DIR)/notes.md; \
+	else \
+		echo "## Changes" > $(RELEASE_DIR)/notes.md; \
+		echo "See [CHANGELOG.md](docs/CHANGELOG.md) for details." >> $(RELEASE_DIR)/notes.md; \
+	fi; \
+	IS_PRERELEASE=$$(echo "$$VERSION" | grep -qE '(-|alpha|beta)' && echo "true" || echo "false"); \
+	echo "  Creating release $$VERSION (prerelease: $$IS_PRERELEASE)..."; \
+	echo ""; \
+	echo "Renaming release files to include version..."; \
+	VERSION_NUM=$$(echo "$$VERSION" | sed 's/^v//'); \
+	if [ -f "$(RELEASE_DIR)/crucible-linux-amd64" ]; then \
+		mv "$(RELEASE_DIR)/crucible-linux-amd64" "$(RELEASE_DIR)/crucible-$$VERSION_NUM-linux-amd64"; \
+		echo "  ✓ crucible-$$VERSION_NUM-linux-amd64"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-linux-arm64" ]; then \
+		mv "$(RELEASE_DIR)/crucible-linux-arm64" "$(RELEASE_DIR)/crucible-$$VERSION_NUM-linux-arm64"; \
+		echo "  ✓ crucible-$$VERSION_NUM-linux-arm64"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-windows-x86_64.exe" ]; then \
+		mv "$(RELEASE_DIR)/crucible-windows-x86_64.exe" "$(RELEASE_DIR)/crucible-$$VERSION_NUM-windows-x86_64.exe"; \
+		echo "  ✓ crucible-$$VERSION_NUM-windows-x86_64.exe"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-macos-x86_64" ]; then \
+		mv "$(RELEASE_DIR)/crucible-macos-x86_64" "$(RELEASE_DIR)/crucible-$$VERSION_NUM-macos-x86_64"; \
+		echo "  ✓ crucible-$$VERSION_NUM-macos-x86_64"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-macos-arm64" ]; then \
+		mv "$(RELEASE_DIR)/crucible-macos-arm64" "$(RELEASE_DIR)/crucible-$$VERSION_NUM-macos-arm64"; \
+		echo "  ✓ crucible-$$VERSION_NUM-macos-arm64"; \
+	fi; \
+	echo ""; \
+	RELEASE_FILES=""; \
+	if [ -f "$(RELEASE_DIR)/crucible-$$VERSION_NUM-linux-amd64" ]; then \
+		RELEASE_FILES="$(RELEASE_DIR)/crucible-$$VERSION_NUM-linux-amd64"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-$$VERSION_NUM-linux-arm64" ]; then \
+		RELEASE_FILES="$$RELEASE_FILES $(RELEASE_DIR)/crucible-$$VERSION_NUM-linux-arm64"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-$$VERSION_NUM-windows-x86_64.exe" ]; then \
+		RELEASE_FILES="$$RELEASE_FILES $(RELEASE_DIR)/crucible-$$VERSION_NUM-windows-x86_64.exe"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-$$VERSION_NUM-macos-x86_64" ]; then \
+		RELEASE_FILES="$$RELEASE_FILES $(RELEASE_DIR)/crucible-$$VERSION_NUM-macos-x86_64"; \
+	fi; \
+	if [ -f "$(RELEASE_DIR)/crucible-$$VERSION_NUM-macos-arm64" ]; then \
+		RELEASE_FILES="$$RELEASE_FILES $(RELEASE_DIR)/crucible-$$VERSION_NUM-macos-arm64"; \
+	fi; \
+	if [ -z "$$RELEASE_FILES" ]; then \
+		echo "  ✗ No release files found to upload"; \
+		exit 1; \
+	fi; \
+	echo "Uploading release files..."; \
+	gh release create $$VERSION \
+		--title "Release $$VERSION" \
+		--notes-file $(RELEASE_DIR)/notes.md \
+		$$RELEASE_FILES \
+		--prerelease=$$IS_PRERELEASE \
+		--latest || { \
+		echo "  ✗ Failed to create release. Check if tag already exists or if you have permissions."; \
+		echo "     You can specify a version explicitly: make github-release VERSION=v1.2.3"; \
+		exit 1; \
+	}; \
+	echo ""; \
+	echo "  ✓ GitHub release created successfully!"; \
+	REPO=$$(gh repo view --json owner,name -q '.owner.login + "/" + .name' 2>/dev/null); \
+	if [ -n "$$REPO" ]; then \
+		echo "  View it at: https://github.com/$$REPO/releases/latest"; \
+	fi
+
+# Linux amd64 build (native)
+release-linux-amd64:
+	@mkdir -p $(RELEASE_DIR)
+	@echo "Building Linux amd64..."
+	@rm -rf $(BDIR)-linux-amd64
+	@$(MAKE) CC=gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-linux-amd64 TARGET=$(BDIR)-linux-amd64/crucible
+	@cp $(BDIR)-linux-amd64/crucible $(RELEASE_DIR)/crucible-linux-amd64
+	@chmod +x $(RELEASE_DIR)/crucible-linux-amd64
+	@echo "  ✓ Linux amd64 build complete"
+
+# Linux arm64 build (cross-compile)
+release-linux-arm64:
+	@mkdir -p $(RELEASE_DIR)
+	@echo "Building Linux arm64..."
+	@if ! command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then \
+		echo "  ⚠ aarch64-linux-gnu-gcc not found. Installing cross-compiler..."; \
+		if command -v apt-get >/dev/null 2>&1; then \
+			sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu; \
+		elif command -v yum >/dev/null 2>&1; then \
+			sudo yum install -y gcc-aarch64-linux-gnu; \
+		else \
+			echo "  ✗ Please install gcc-aarch64-linux-gnu manually"; \
+			exit 1; \
+		fi \
+	fi
+	@rm -rf $(BDIR)-linux-arm64
+	@$(MAKE) CC=aarch64-linux-gnu-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-linux-arm64 TARGET=$(BDIR)-linux-arm64/crucible
+	@cp $(BDIR)-linux-arm64/crucible $(RELEASE_DIR)/crucible-linux-arm64
+	@chmod +x $(RELEASE_DIR)/crucible-linux-arm64
+	@echo "  ✓ Linux arm64 build complete"
+
+# Windows x86_64 build (cross-compile with MinGW)
+release-windows-x86_64:
+	@mkdir -p $(RELEASE_DIR)
+	@echo "Building Windows x86_64..."
+	@if ! command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
+		echo "  ⚠ x86_64-w64-mingw32-gcc not found. Installing MinGW..."; \
+		if command -v apt-get >/dev/null 2>&1; then \
+			sudo apt-get update && sudo apt-get install -y mingw-w64; \
+		elif command -v yum >/dev/null 2>&1; then \
+			sudo yum install -y mingw64-gcc; \
+		else \
+			echo "  ✗ Please install mingw-w64 manually"; \
+			exit 1; \
+		fi \
+	fi
+	@rm -rf $(BDIR)-windows-x86_64
+	@$(MAKE) CC=x86_64-w64-mingw32-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-windows-x86_64 TARGET=$(BDIR)-windows-x86_64/crucible.exe
+	@cp $(BDIR)-windows-x86_64/crucible.exe $(RELEASE_DIR)/crucible-windows-x86_64.exe
+	@echo "  ✓ Windows x86_64 build complete"
 
 $(ODIR)/%.o: src/%.c | $(ODIR)
 	$(CC) $(CFLAGS) -c -o $@ $<

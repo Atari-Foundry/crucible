@@ -1,101 +1,29 @@
 name: Release
 
+# This workflow is disabled - releases are created locally using 'make github-release'
+# See CONTRIBUTING.md and Makefile for release instructions
+
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (e.g., v1.0.0)'
-        required: true
+      note:
+        description: 'This workflow is disabled. Use "make github-release" locally instead.'
+        required: false
         type: string
 
-# This workflow creates releases when code is merged to main
-# For automatic releases on every merge, this runs on push to main
-# For versioned releases, push a tag like: git tag v1.0.0 && git push origin v1.0.0
-
 jobs:
-  build-release:
-    name: Build Release
+  disabled:
+    name: Release Workflow Disabled
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Determine version
-      id: version
+    - name: Notice
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          VERSION="${{ github.event.inputs.version }}"
-        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-          VERSION="${{ github.ref_name }}"
-        else
-          # Extract version from CHANGELOG or use date-based version
-          VERSION="v$(date +%Y.%m.%d)-$(git rev-parse --short HEAD)"
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "tag=${VERSION#v}" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION"
-    
-    - name: Build Linux
-      run: make clean && make
-    
-    - name: Build Windows
-      uses: egor-tensin/setup-mingw@v2
-      with:
-        platform: x64
-      run: |
-        make clean
-        make CC=x86_64-w64-mingw32-gcc
-    
-    - name: Build macOS
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
-      run: |
-        make clean && make
-    
-    - name: Create release artifacts
-      run: |
-        mkdir -p release
-        cp build/crucible release/crucible-linux-x86_64
-        chmod +x release/crucible-linux-x86_64
-        if [ -f build/crucible.exe ]; then
-          cp build/crucible.exe release/crucible-windows-x86_64.exe
-        fi
-        if [ -f build/crucible ] && [ "$(uname)" = "Darwin" ]; then
-          cp build/crucible release/crucible-macos-x86_64
-          chmod +x release/crucible-macos-x86_64
-        fi
-    
-    - name: Create release notes
-      id: notes
-      run: |
-        if [ -f docs/CHANGELOG.md ]; then
-          # Extract changelog section for this version
-          awk '/^## \[/{p=0} /^## \[Unreleased\]/{p=1; next} p' docs/CHANGELOG.md > release/notes.md || echo "## Changes" > release/notes.md
-        else
-          echo "## Changes" > release/notes.md
-          echo "See [CHANGELOG.md](docs/CHANGELOG.md) for details." >> release/notes.md
-        fi
-    
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: Release ${{ steps.version.outputs.version }}
-        body_path: release/notes.md
-        files: |
-          release/crucible-linux-x86_64
-          release/crucible-windows-x86_64.exe
-          release/crucible-macos-x86_64
-        draft: false
-        prerelease: ${{ contains(steps.version.outputs.version, '-') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        echo "⚠️  This workflow is disabled."
+        echo ""
+        echo "Releases are created locally using: make github-release"
+        echo ""
+        echo "To create a release:"
+        echo "  1. Build all platforms: make release"
+        echo "  2. Create GitHub release: make github-release [VERSION=v1.2.3]"
+        echo ""
+        echo "See CONTRIBUTING.md for more information."

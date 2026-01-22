@@ -1,21 +1,31 @@
-name: Auto-Merge to Main
+name: Merge develop to main
 
-# This workflow automatically merges develop branch to main after successful build
-# Triggers when CI completes successfully on the develop branch
+# This workflow automatically merges develop branch to main after successful CI
+# Alternative approach: triggers directly on push to develop after CI succeeds
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
+  push:
     branches:
       - develop
 
 jobs:
-  auto-merge:
-    name: Auto-Merge develop to main
+  wait-for-ci:
+    name: Wait for CI to complete
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' }}
+    steps:
+    - name: Wait for CI
+      uses: lewagon/wait-on-check-action@v1.3.4
+      with:
+        ref: ${{ github.sha }}
+        check-name: 'Build and Test'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        wait-interval: 10
+
+  merge-to-main:
+    name: Merge to main
+    needs: wait-for-ci
+    runs-on: ubuntu-latest
+    if: success()
     
     steps:
     - name: Checkout code
@@ -32,6 +42,7 @@ jobs:
     - name: Merge develop to main
       run: |
         git checkout main
+        git pull origin main
         git merge develop --no-edit -m "Auto-merge from develop branch [skip ci]"
         git push origin main
       env:
