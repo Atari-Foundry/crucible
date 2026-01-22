@@ -5,9 +5,71 @@ All notable changes to crucible will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2026-01-21
+## [Unreleased]
 
-### Added
+### Added - 2026-01-22
+
+- **Contributing Guide**: Added `CONTRIBUTING.md` with guidelines for contributors
+  - Development setup instructions
+  - Coding standards and style guidelines
+  - Testing requirements
+  - Git workflow and pull request process
+
+- **Release Process Improvements**:
+  - Version numbers now included in release filenames (e.g., `crucible-1.0.0-linux-amd64`)
+  - Automatic version detection and incrementing
+  - Better error handling for existing releases
+  - Release file verification before upload
+
+- **macOS Cross-Compilation**:
+  - Updated to use `macos-cross-compiler` Docker image
+  - Simplified build process (no SDK setup required)
+  - Support for both Intel (x86_64) and Apple Silicon (arm64) builds
+
+- **Documentation**:
+  - Added `docs/GIT_SETUP.md` - Git branch structure and workflow guide
+  - Added `docs/MACOS_BUILD.md` - macOS build instructions
+  - Updated CI/CD documentation for local release process
+
+### Changed - 2026-01-22
+
+- **Build System**:
+  - macOS builds now use `ghcr.io/shepherdjerred/macos-cross-compiler` Docker image
+  - Removed dependency on local macOS SDK files
+  - `make release` now includes macOS builds by default
+
+- **Git Workflow**:
+  - Replaced personal branch name with generic `develop` branch
+  - Updated all workflows and documentation to use `develop`/`main` structure
+  - Auto-merge workflow now merges `develop` to `main`
+
+- **Release Process**:
+  - Releases are now created locally using `make github-release`
+  - GitHub Actions release workflow disabled (builds done locally)
+  - Improved version handling with automatic conflict detection
+
+- **Project Structure**:
+  - Enhanced `.gitignore` with editor and OS-specific patterns
+  - Removed unused Docker build files (`Dockerfile.macos`, `build-macos.sh`)
+  - Cleaned up tracked files (removed `.cursor/debug.log`)
+
+- **Documentation**:
+  - Updated README.md with quick links to docs and releases
+  - Updated CI/CD documentation to reflect local release process
+  - Updated workflow documentation
+
+### Fixed - 2026-01-22
+
+- **Compilation**: Fixed missing `athost.h` include in `main.c`
+  - Resolved implicit function declaration error
+  - All platforms now compile successfully
+
+- **Release Process**:
+  - Fixed issue where macOS binaries weren't included in releases
+  - Fixed version consistency between tags and filenames
+  - Improved error messages for release failures
+
+### Added - 2026-01-21
 
 - **ATR Filesystem Support**: Full ATR image filesystem access for D: device
   - Directory parsing for DOS 2.x, SpartaDOS, and BW-DOS formats
@@ -53,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - User guide, architecture documentation, API reference
   - Build instructions and troubleshooting guides
 
-### Changed
+### Changed - 2026-01-21
 
 - **D: Device**: Now exclusively uses ATR filesystem when ATR image is loaded
   - Removed host filesystem fallback (use H: device instead)
@@ -75,7 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed stack preservation in `call_devtab` to prevent corruption from nested calls
   - All CIO operations now work correctly with proper return handling
 
-### Fixed
+### Fixed - 2026-01-21
 
 - **CIO Return Handling**: Fixed critical bug where CIOV callbacks were not properly returning to caller
   - Implemented RTS simulation in `sim_CIOV` to properly handle return addresses

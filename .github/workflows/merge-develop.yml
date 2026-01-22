@@ -17,7 +17,7 @@ jobs:
       uses: lewagon/wait-on-check-action@v1.3.4
       with:
         ref: ${{ github.sha }}
-        check-name: 'Build and Test'
+        check-name: 'Verify (Linux)'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         wait-interval: 10
 
@@ -25,7 +25,7 @@ jobs:
     name: Merge to main
     needs: wait-for-ci
     runs-on: ubuntu-latest
-    if: success()
+    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'neutral')
     
     steps:
     - name: Checkout code

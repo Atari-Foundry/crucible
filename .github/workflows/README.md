@@ -6,13 +6,12 @@ This directory contains GitHub Actions workflows for automated CI/CD.
 
 ### `ci.yml` - Continuous Integration
 - **Triggers**: Push to `main`/`develop`, Pull Requests
-- **Purpose**: Build and test on multiple platforms (Linux, Windows, macOS)
+- **Purpose**: Basic verification only (Linux builds for CI)
 - **Actions**:
-  - Builds with GCC and Clang on Linux
-  - Builds on Windows with MinGW
-  - Builds on macOS
+  - Builds with GCC and Clang on Linux (for verification)
   - Runs test suite
   - Verifies executable works
+- **Note**: All release builds are done locally. CI only verifies code compiles and tests pass.
 
 ### `release.yml` - Release Creation (Disabled)
 - **Status**: ⚠️ Disabled - Releases are created locally
