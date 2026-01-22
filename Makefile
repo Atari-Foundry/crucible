@@ -213,6 +213,26 @@ github-release: release
 		fi; \
 	fi; \
 	echo ""; \
+	echo "Checking if release already exists..."; \
+	if gh release view "$$VERSION" >/dev/null 2>&1; then \
+		echo "  ⚠ Release $$VERSION already exists on GitHub."; \
+		if [ -z "$(VERSION)" ]; then \
+			echo "     Auto-incrementing version..."; \
+			LATEST_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+			MAJOR=$$(echo $$LATEST_TAG | sed 's/^v//' | cut -d. -f1); \
+			MINOR=$$(echo $$LATEST_TAG | sed 's/^v//' | cut -d. -f2); \
+			PATCH=$$(echo $$LATEST_TAG | sed 's/^v//' | cut -d. -f3); \
+			PATCH=$$((PATCH + 1)); \
+			VERSION="v$$MAJOR.$$MINOR.$$PATCH"; \
+			echo "  Using incremented version: $$VERSION"; \
+		else \
+			echo "     To update it, delete the existing release first, or use a different version."; \
+			echo "     Delete: gh release delete $$VERSION"; \
+			echo "     Or specify a different version: make github-release VERSION=v1.2.3"; \
+			exit 1; \
+		fi; \
+	fi; \
+	echo ""; \
 	echo "Creating release notes..."; \
 	mkdir -p $(RELEASE_DIR); \
 	if [ -f docs/CHANGELOG.md ]; then \
@@ -224,6 +244,27 @@ github-release: release
 	fi; \
 	IS_PRERELEASE=$$(echo "$$VERSION" | grep -qE '(-|alpha|beta)' && echo "true" || echo "false"); \
 	echo "  Creating release $$VERSION (prerelease: $$IS_PRERELEASE)..."; \
+	echo ""; \
+	echo "Creating/verifying git tag..."; \
+	if ! git rev-parse "$$VERSION" >/dev/null 2>&1; then \
+		echo "  Creating git tag $$VERSION..."; \
+		git tag -a "$$VERSION" -m "Release $$VERSION" || { \
+			echo "  ⚠ Failed to create tag"; \
+			exit 1; \
+		}; \
+		git push origin "$$VERSION" 2>/dev/null || { \
+			echo "  ⚠ Failed to push tag to remote"; \
+			echo "     You may need to push manually: git push origin $$VERSION"; \
+		}; \
+	else \
+		echo "  Tag $$VERSION already exists locally"; \
+		if ! git ls-remote --tags origin "$$VERSION" >/dev/null 2>&1; then \
+			echo "  Pushing tag to remote..."; \
+			git push origin "$$VERSION" 2>/dev/null || { \
+				echo "  ⚠ Failed to push tag to remote"; \
+			}; \
+		fi; \
+	fi; \
 	echo ""; \
 	echo "Renaming release files to include version..."; \
 	VERSION_NUM=$$(echo "$$VERSION" | sed 's/^v//'); \
@@ -269,14 +310,23 @@ github-release: release
 		exit 1; \
 	fi; \
 	echo "Uploading release files..."; \
-	gh release create $$VERSION \
+	gh release create "$$VERSION" \
 		--title "Release $$VERSION" \
 		--notes-file $(RELEASE_DIR)/notes.md \
 		$$RELEASE_FILES \
 		--prerelease=$$IS_PRERELEASE \
 		--latest || { \
-		echo "  ✗ Failed to create release. Check if tag already exists or if you have permissions."; \
-		echo "     You can specify a version explicitly: make github-release VERSION=v1.2.3"; \
+		echo ""; \
+		echo "  ✗ Failed to create release."; \
+		echo "     Common issues:"; \
+		echo "     - Release with tag $$VERSION already exists"; \
+		echo "     - Tag $$VERSION doesn't exist (should have been created above)"; \
+		echo "     - Insufficient permissions"; \
+		echo ""; \
+		echo "     Solutions:"; \
+		echo "     - Delete existing release: gh release delete $$VERSION"; \
+		echo "     - Use a different version: make github-release VERSION=v1.2.3"; \
+		echo "     - Check permissions: gh auth status"; \
 		exit 1; \
 	}; \
 	echo ""; \
