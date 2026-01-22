@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - 2026-01-22
+### Added - 2026-01-22 20:30:00
 
 - **Contributing Guide**: Added `CONTRIBUTING.md` with guidelines for contributors
   - Development setup instructions
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `docs/MACOS_BUILD.md` - macOS build instructions
   - Updated CI/CD documentation for local release process
 
-### Changed - 2026-01-22
+### Changed - 2026-01-22 20:30:00
 
 - **Build System**:
   - macOS builds now use `ghcr.io/shepherdjerred/macos-cross-compiler` Docker image
@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated CI/CD documentation to reflect local release process
   - Updated workflow documentation
 
-### Fixed - 2026-01-22
+### Fixed - 2026-01-22 20:30:00
 
 - **Compilation**: Fixed missing `athost.h` include in `main.c`
   - Resolved implicit function declaration error

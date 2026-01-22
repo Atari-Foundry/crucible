@@ -28,3 +28,6 @@ Thumbs.db
 *.log
 *.bak
 *.orig
+
+# Release tracking
+.last-changelog.md
