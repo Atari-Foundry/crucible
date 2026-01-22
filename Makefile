@@ -94,7 +94,7 @@ clean:
 	rm -f testfiles/*.xex testfiles/*.atr testfiles/TEST.TXT
 
 # Release builds
-release: release-linux-amd64 release-linux-arm64 release-windows-x86_64
+release: release-linux-amd64 release-linux-arm64 release-windows-x86_64 release-macos
 	@echo ""
 	@echo "Release builds completed:"
 	@ls -lh $(RELEASE_DIR)/
@@ -309,6 +309,15 @@ github-release: release
 		echo "  ✗ No release files found to upload"; \
 		exit 1; \
 	fi; \
+	echo "Release files to upload:"; \
+	for file in $$RELEASE_FILES; do \
+		if [ -f "$$file" ]; then \
+			echo "  ✓ $$(basename $$file)"; \
+		else \
+			echo "  ✗ Missing: $$file"; \
+		fi; \
+	done; \
+	echo ""; \
 	echo "Uploading release files..."; \
 	gh release create "$$VERSION" \
 		--title "Release $$VERSION" \

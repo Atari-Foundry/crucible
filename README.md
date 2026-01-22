@@ -2,6 +2,11 @@
 
 Small 6502 simulator with Atari 8-bit BIOS emulation for debugging and running command-line Atari programs.
 
+## Quick Links
+
+- 📚 **[Documentation](docs/)** - Complete documentation and guides
+- 🚀 **[Releases](https://github.com/Atari-Foundry/crucible/releases)** - Download pre-built binaries
+
 ## Quick Start
 
 ```bash
