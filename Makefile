@@ -19,7 +19,7 @@
 
 CC=gcc
 INCLUDES=-Iccan
-CFLAGS=$(INCLUDES) -O3 -Wall -g -flto
+CFLAGS=$(INCLUDES) -O3 -Wall -g -flto=auto
 LDLIBS=-lm
 
 BDIR=build
@@ -121,7 +121,7 @@ release-macos-x86_64:
 		sh -c " \
 			rm -rf build-macos-x86_64 && \
 			make CC=x86_64-apple-darwin24-gcc \
-			     CFLAGS=\"-Iccan -O3 -Wall -flto\" \
+			     CFLAGS=\"-Iccan -O3 -Wall -flto=auto\" \
 			     LDLIBS=\"-lm\" \
 			     BDIR=build-macos-x86_64 \
 			     TARGET=build-macos-x86_64/crucible && \
@@ -146,7 +146,7 @@ release-macos-arm64:
 		sh -c " \
 			rm -rf build-macos-arm64 && \
 			make CC=aarch64-apple-darwin24-gcc \
-			     CFLAGS=\"-Iccan -O3 -Wall -flto\" \
+			     CFLAGS=\"-Iccan -O3 -Wall -flto=auto\" \
 			     LDLIBS=\"-lm\" \
 			     BDIR=build-macos-arm64 \
 			     TARGET=build-macos-arm64/crucible && \
@@ -350,7 +350,7 @@ release-linux-amd64:
 	@mkdir -p $(RELEASE_DIR)
 	@echo "Building Linux amd64..."
 	@rm -rf $(BDIR)-linux-amd64
-	@$(MAKE) CC=gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-linux-amd64 TARGET=$(BDIR)-linux-amd64/crucible
+	@$(MAKE) CC=gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto=auto" BDIR=$(BDIR)-linux-amd64 TARGET=$(BDIR)-linux-amd64/crucible
 	@cp $(BDIR)-linux-amd64/crucible $(RELEASE_DIR)/crucible-linux-amd64
 	@chmod +x $(RELEASE_DIR)/crucible-linux-amd64
 	@echo "  ✓ Linux amd64 build complete"
@@ -371,7 +371,7 @@ release-linux-arm64:
 		fi \
 	fi
 	@rm -rf $(BDIR)-linux-arm64
-	@$(MAKE) CC=aarch64-linux-gnu-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-linux-arm64 TARGET=$(BDIR)-linux-arm64/crucible
+	@$(MAKE) CC=aarch64-linux-gnu-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto=auto" BDIR=$(BDIR)-linux-arm64 TARGET=$(BDIR)-linux-arm64/crucible
 	@cp $(BDIR)-linux-arm64/crucible $(RELEASE_DIR)/crucible-linux-arm64
 	@chmod +x $(RELEASE_DIR)/crucible-linux-arm64
 	@echo "  ✓ Linux arm64 build complete"
@@ -392,7 +392,7 @@ release-windows-x86_64:
 		fi \
 	fi
 	@rm -rf $(BDIR)-windows-x86_64
-	@$(MAKE) CC=x86_64-w64-mingw32-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-windows-x86_64 TARGET=$(BDIR)-windows-x86_64/crucible.exe
+	@$(MAKE) CC=x86_64-w64-mingw32-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto=auto" BDIR=$(BDIR)-windows-x86_64 TARGET=$(BDIR)-windows-x86_64/crucible.exe
 	@cp $(BDIR)-windows-x86_64/crucible.exe $(RELEASE_DIR)/crucible-windows-x86_64.exe
 	@echo "  ✓ Windows x86_64 build complete"
 

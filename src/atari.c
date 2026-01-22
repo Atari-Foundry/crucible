@@ -45,10 +45,18 @@ static int sys_proc_char(int c)
         // Try to reopen terminal on Unix/Linux, otherwise clear error
 #ifdef _WIN32
         // On Windows, clear the EOF condition by reopening stdin
-        freopen("CONIN$", "r", stdin);
+        if (freopen("CONIN$", "r", stdin) == NULL)
+        {
+            // If freopen fails, clear error state as fallback
+            clearerr(stdin);
+        }
 #else
         // On Unix/Linux, reopen /dev/tty
-        freopen("/dev/tty", "r", stdin);
+        if (freopen("/dev/tty", "r", stdin) == NULL)
+        {
+            // If freopen fails, clear error state as fallback
+            clearerr(stdin);
+        }
 #endif
     }
     return c;
