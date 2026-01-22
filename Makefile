@@ -19,7 +19,7 @@
 
 CC=gcc
 INCLUDES=-Iccan
-CFLAGS=$(INCLUDES) -O3 -Wall -g -flto
+CFLAGS=$(INCLUDES) -O3 -Wall -g -flto=auto
 LDLIBS=-lm
 
 BDIR=build
@@ -121,7 +121,7 @@ release-macos-x86_64:
 		sh -c " \
 			rm -rf build-macos-x86_64 && \
 			make CC=x86_64-apple-darwin24-gcc \
-			     CFLAGS=\"-Iccan -O3 -Wall -flto\" \
+			     CFLAGS=\"-Iccan -O3 -Wall -flto=auto\" \
 			     LDLIBS=\"-lm\" \
 			     BDIR=build-macos-x86_64 \
 			     TARGET=build-macos-x86_64/crucible && \
@@ -146,7 +146,7 @@ release-macos-arm64:
 		sh -c " \
 			rm -rf build-macos-arm64 && \
 			make CC=aarch64-apple-darwin24-gcc \
-			     CFLAGS=\"-Iccan -O3 -Wall -flto\" \
+			     CFLAGS=\"-Iccan -O3 -Wall -flto=auto\" \
 			     LDLIBS=\"-lm\" \
 			     BDIR=build-macos-arm64 \
 			     TARGET=build-macos-arm64/crucible && \
@@ -166,10 +166,140 @@ release-docker:
 	@ls -lh $(RELEASE_DIR)/
 
 # Create GitHub release with all binaries
-# Usage: make github-release [VERSION=v1.2.3]
-github-release: release
+# Usage: make github-release [VERSION=v1.2.3] [SKIP_GIT=1] [AUTO_COMMIT=1]
+# SKIP_GIT=1 skips git commit/push/merge steps
+# AUTO_COMMIT=1 automatically commits changes without prompting
+github-release:
 	@echo ""; \
-	echo "Creating GitHub release..."; \
+	echo "=== Preparing for release ==="; \
+	CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
+	echo "Current branch: $$CURRENT_BRANCH"; \
+	if [ "$(SKIP_GIT)" != "1" ]; then \
+		echo ""; \
+		echo "Step 1: Checking git status..."; \
+		if [ -n "$$(git status --porcelain 2>/dev/null)" ]; then \
+			echo "  Found uncommitted changes:"; \
+			git status --short; \
+			if [ "$(AUTO_COMMIT)" = "1" ]; then \
+				COMMIT_MSG="Prepare release: $$(date '+%Y-%m-%d %H:%M:%S')"; \
+				git add -A; \
+				git commit -m "$$COMMIT_MSG" || { \
+					echo "  ⚠ Failed to commit changes"; \
+					exit 1; \
+				}; \
+				echo "  ✓ Changes committed automatically"; \
+			else \
+				read -p "  Commit these changes? (y/n) " -n 1 -r; \
+				echo; \
+				if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
+					COMMIT_MSG="Prepare release: $$(date '+%Y-%m-%d %H:%M:%S')"; \
+					git add -A; \
+					git commit -m "$$COMMIT_MSG" || { \
+						echo "  ⚠ Failed to commit changes"; \
+						exit 1; \
+					}; \
+					echo "  ✓ Changes committed"; \
+				else \
+					echo "  ⚠ Skipping commit. Uncommitted changes remain."; \
+				fi; \
+			fi; \
+		else \
+			echo "  ✓ Working directory clean"; \
+		fi; \
+		echo ""; \
+		echo "Step 2: Pushing to remote..."; \
+		if git rev-parse --verify origin/$$CURRENT_BRANCH >/dev/null 2>&1; then \
+			git push origin $$CURRENT_BRANCH || { \
+				echo "  ⚠ Failed to push to origin/$$CURRENT_BRANCH"; \
+				echo "     You may need to push manually: git push origin $$CURRENT_BRANCH"; \
+				read -p "  Continue anyway? (y/n) " -n 1 -r; \
+				echo; \
+				if [ "$$REPLY" != "y" ] && [ "$$REPLY" != "Y" ]; then \
+					exit 1; \
+				fi; \
+			}; \
+		else \
+			echo "  Creating and pushing branch $$CURRENT_BRANCH..."; \
+			git push -u origin $$CURRENT_BRANCH || { \
+				echo "  ⚠ Failed to push branch"; \
+				exit 1; \
+			}; \
+		fi; \
+		echo "  ✓ Pushed to origin/$$CURRENT_BRANCH"; \
+		echo ""; \
+		if [ "$$CURRENT_BRANCH" = "develop" ]; then \
+			echo "Step 3: Merging to main..."; \
+			echo "  Checking if auto-merge workflow is available..."; \
+			CI_RUN_ID=$$(gh run list --workflow=ci.yml --branch=develop --limit=1 --json databaseId,status,conclusion -q '.[0].databaseId' 2>/dev/null); \
+			if [ -n "$$CI_RUN_ID" ]; then \
+				echo "  Waiting for CI to complete..."; \
+				gh run watch $$CI_RUN_ID --exit-status || { \
+					echo "  ⚠ CI failed. Do you want to merge to main anyway?"; \
+					read -p "  Continue? (y/n) " -n 1 -r; \
+					echo; \
+					if [ "$$REPLY" != "y" ] && [ "$$REPLY" != "Y" ]; then \
+						exit 1; \
+					fi; \
+				}; \
+			fi; \
+			echo "  Merging develop to main..."; \
+			git fetch origin main:main 2>/dev/null || true; \
+			git checkout main 2>/dev/null || { \
+				echo "  ⚠ Failed to checkout main. Creating from develop..."; \
+				git checkout -b main; \
+			}; \
+			git pull origin main 2>/dev/null || true; \
+			git merge develop --no-edit -m "Merge develop to main for release [skip ci]" || { \
+				echo "  ⚠ Merge conflict detected. Please resolve manually:"; \
+				echo "     git checkout main"; \
+				echo "     git merge develop"; \
+				echo "     # Resolve conflicts, then:"; \
+				echo "     git commit"; \
+				echo "     git push origin main"; \
+				echo "     make github-release SKIP_GIT=1"; \
+				exit 1; \
+			}; \
+			git push origin main || { \
+				echo "  ⚠ Failed to push to main. Please push manually:"; \
+				echo "     git push origin main"; \
+				read -p "  Continue with release anyway? (y/n) " -n 1 -r; \
+				echo; \
+				if [ "$$REPLY" != "y" ] && [ "$$REPLY" != "Y" ]; then \
+					exit 1; \
+				fi; \
+			}; \
+			echo "  ✓ Merged to main and pushed"; \
+		elif [ "$$CURRENT_BRANCH" != "main" ]; then \
+			echo "Step 3: Switching to main branch..."; \
+			git fetch origin main:main 2>/dev/null || true; \
+			git checkout main 2>/dev/null || { \
+				echo "  ⚠ main branch not found locally or remotely"; \
+				exit 1; \
+			}; \
+			git pull origin main || { \
+				echo "  ⚠ Failed to pull latest main"; \
+				exit 1; \
+			}; \
+			echo "  ✓ Switched to main branch"; \
+		else \
+			echo "Step 3: Already on main branch, pulling latest..."; \
+			git pull origin main || { \
+				echo "  ⚠ Failed to pull latest main"; \
+				exit 1; \
+			}; \
+			echo "  ✓ Main branch up to date"; \
+		fi; \
+		echo ""; \
+		echo "=== Git operations complete ==="; \
+		echo ""; \
+	fi; \
+	$(MAKE) github-release-build
+
+# Internal target: Build and create GitHub release
+# This is called after git operations are complete
+github-release-build: release
+	@echo ""; \
+	echo "=== Creating GitHub release ==="; \
 	if ! command -v gh >/dev/null 2>&1; then \
 		echo "  ✗ GitHub CLI (gh) not found. Please install it:"; \
 		echo "     https://cli.github.com/"; \
@@ -236,8 +366,36 @@ github-release: release
 	echo "Creating release notes..."; \
 	mkdir -p $(RELEASE_DIR); \
 	if [ -f docs/CHANGELOG.md ]; then \
-		awk '/^## \[/{p=0} /^## \[Unreleased\]/{p=1; next} p' docs/CHANGELOG.md > $(RELEASE_DIR)/notes.md 2>/dev/null || \
-		echo "## Changes" > $(RELEASE_DIR)/notes.md; \
+		RELEASE_DATE=$$(date '+%Y-%m-%d %H:%M:%S'); \
+		echo "## Release $$VERSION - $$RELEASE_DATE" > $(RELEASE_DIR)/notes.md; \
+		echo "" >> $(RELEASE_DIR)/notes.md; \
+		awk '/^## \[/{p=0} /^## \[Unreleased\]/{p=1; next} p' docs/CHANGELOG.md > $(RELEASE_DIR)/current-unreleased.md 2>/dev/null; \
+		if [ -f .last-changelog.md ]; then \
+			echo "  Comparing with previous changelog to extract new changes..."; \
+			if [ -s $(RELEASE_DIR)/current-unreleased.md ]; then \
+				if ! diff -q .last-changelog.md $(RELEASE_DIR)/current-unreleased.md >/dev/null 2>&1; then \
+					diff -u .last-changelog.md $(RELEASE_DIR)/current-unreleased.md 2>/dev/null | \
+					awk '/^\+/ && !/^+++/ && !/^\+---/ { \
+						line = substr($$0, 2); \
+						if (line !~ /^@@/) print line; \
+					}' >> $(RELEASE_DIR)/notes.md || \
+					cat $(RELEASE_DIR)/current-unreleased.md >> $(RELEASE_DIR)/notes.md; \
+				else \
+					echo "No new changes detected since last release." >> $(RELEASE_DIR)/notes.md; \
+					echo "  ⚠ Warning: [Unreleased] section unchanged since last release"; \
+				fi; \
+			else \
+				echo "No changes found in [Unreleased] section." >> $(RELEASE_DIR)/notes.md; \
+			fi; \
+		else \
+			echo "  No previous changelog found, using all [Unreleased] entries..."; \
+			if [ -s $(RELEASE_DIR)/current-unreleased.md ]; then \
+				cat $(RELEASE_DIR)/current-unreleased.md >> $(RELEASE_DIR)/notes.md; \
+			else \
+				echo "No changes found in [Unreleased] section." >> $(RELEASE_DIR)/notes.md; \
+			fi; \
+		fi; \
+		rm -f $(RELEASE_DIR)/current-unreleased.md; \
 	else \
 		echo "## Changes" > $(RELEASE_DIR)/notes.md; \
 		echo "See [CHANGELOG.md](docs/CHANGELOG.md) for details." >> $(RELEASE_DIR)/notes.md; \
@@ -343,6 +501,15 @@ github-release: release
 	REPO=$$(gh repo view --json owner,name -q '.owner.login + "/" + .name' 2>/dev/null); \
 	if [ -n "$$REPO" ]; then \
 		echo "  View it at: https://github.com/$$REPO/releases/latest"; \
+	fi; \
+	echo ""; \
+	echo "Saving changelog state..."; \
+	if [ -f docs/CHANGELOG.md ]; then \
+		awk '/^## \[/{p=0} /^## \[Unreleased\]/{p=1; next} p' docs/CHANGELOG.md > .last-changelog.md 2>/dev/null && \
+		echo "  ✓ Saved current [Unreleased] section to .last-changelog.md" || \
+		echo "  ⚠ Failed to save changelog state"; \
+	else \
+		echo "  ⚠ CHANGELOG.md not found, skipping state save"; \
 	fi
 
 # Linux amd64 build (native)
@@ -350,7 +517,7 @@ release-linux-amd64:
 	@mkdir -p $(RELEASE_DIR)
 	@echo "Building Linux amd64..."
 	@rm -rf $(BDIR)-linux-amd64
-	@$(MAKE) CC=gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-linux-amd64 TARGET=$(BDIR)-linux-amd64/crucible
+	@$(MAKE) CC=gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto=auto" BDIR=$(BDIR)-linux-amd64 TARGET=$(BDIR)-linux-amd64/crucible
 	@cp $(BDIR)-linux-amd64/crucible $(RELEASE_DIR)/crucible-linux-amd64
 	@chmod +x $(RELEASE_DIR)/crucible-linux-amd64
 	@echo "  ✓ Linux amd64 build complete"
@@ -371,7 +538,7 @@ release-linux-arm64:
 		fi \
 	fi
 	@rm -rf $(BDIR)-linux-arm64
-	@$(MAKE) CC=aarch64-linux-gnu-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-linux-arm64 TARGET=$(BDIR)-linux-arm64/crucible
+	@$(MAKE) CC=aarch64-linux-gnu-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto=auto" BDIR=$(BDIR)-linux-arm64 TARGET=$(BDIR)-linux-arm64/crucible
 	@cp $(BDIR)-linux-arm64/crucible $(RELEASE_DIR)/crucible-linux-arm64
 	@chmod +x $(RELEASE_DIR)/crucible-linux-arm64
 	@echo "  ✓ Linux arm64 build complete"
@@ -392,7 +559,7 @@ release-windows-x86_64:
 		fi \
 	fi
 	@rm -rf $(BDIR)-windows-x86_64
-	@$(MAKE) CC=x86_64-w64-mingw32-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto" BDIR=$(BDIR)-windows-x86_64 TARGET=$(BDIR)-windows-x86_64/crucible.exe
+	@$(MAKE) CC=x86_64-w64-mingw32-gcc CFLAGS="$(INCLUDES) -O3 -Wall -flto=auto" BDIR=$(BDIR)-windows-x86_64 TARGET=$(BDIR)-windows-x86_64/crucible.exe
 	@cp $(BDIR)-windows-x86_64/crucible.exe $(RELEASE_DIR)/crucible-windows-x86_64.exe
 	@echo "  ✓ Windows x86_64 build complete"
 

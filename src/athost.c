@@ -123,14 +123,22 @@ static int sim_HOST(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 {
                     // Open directory for reading
                     char fullpath[512];
+                    int ret;
                     if (fname[0] == '\0')
                     {
                         // No path specified, use root
-                        snprintf(fullpath, sizeof(fullpath), "%s", host_root_path);
+                        ret = snprintf(fullpath, sizeof(fullpath), "%s", host_root_path);
                     }
                     else
                     {
-                        snprintf(fullpath, sizeof(fullpath), "%s/%s", host_root_path, fname);
+                        ret = snprintf(fullpath, sizeof(fullpath), "%s/%s", host_root_path, fname);
+                    }
+                    if (ret < 0 || (size_t)ret >= sizeof(fullpath))
+                    {
+                        // Path truncated or error occurred
+                        sim65_dprintf(s, "HOST DIR OPEN: Path too long");
+                        regs->y = 139; // General I/O error
+                        return 0;
                     }
 
                     dir_hand[chn] = opendir(fullpath);
@@ -209,8 +217,15 @@ static int sim_HOST(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                         // Format new entry
                         struct stat st;
                         char fullpath[512];
-                        snprintf(fullpath, sizeof(fullpath), "%s/%s", host_root_path,
-                                 entry->d_name);
+                        int ret = snprintf(fullpath, sizeof(fullpath), "%s/%s", host_root_path,
+                                           entry->d_name);
+                        if (ret < 0 || (size_t)ret >= sizeof(fullpath))
+                        {
+                            // Path truncated or error occurred
+                            sim65_dprintf(s, "HOST GET: Path too long for directory entry");
+                            regs->y = 139; // General I/O error
+                            return 0;
+                        }
                         stat(fullpath, &st);
 
                         // Format: "FILENAME  EXT 12345" (DOS 2.x style)
