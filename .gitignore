@@ -11,6 +11,9 @@ MacOSX*.sdk.tar.xz
 # macOS cross-compilation tools
 MACOS_XCOMP/
 
+# BUILD_TAMPLATE Folder
+BUILD_TEMPLATE/
+
 # Editor directories
 .cursor/
 .vscode/
