@@ -1,0 +1,51 @@
+# Assembly Build Makefile Template
+# 
+# This template is for projects that need to build assembly files and generate
+# header files from binary outputs. Customize the variables below for your project.
+#
+# Configuration Variables:
+#   AS              - Assembler command (e.g., "mads", "nasm", "as")
+#   ASM_DIR         - Directory containing assembly source files (default: "asm")
+#   OUTPUT_DIR      - Directory where generated headers should go (default: "../src")
+#   BIN_FILES       - List of binary files to generate headers from
+#   HEADER_TEMPLATES - List of header template files
+#   ASM_SOURCES     - List of assembly source files
+
+# Assembler configuration
+AS ?= {{AS}}
+
+# Directory configuration
+ASM_DIR ?= .
+OUTPUT_DIR ?= {{OUTPUT_DIR}}
+
+# Binary files to convert to headers
+# Format: output_header: input_binary template_header
+# Example:
+#   $(OUTPUT_DIR)/file_bin.h: file.bin template.h
+#     cp -f template.h $@
+#     xxd -i $< | sed -e 's/^  */    /' >> $@
+
+# Assembly source files and their outputs
+# Format: output_binary: source_files
+# Example:
+#   file.bin: compile-file.s file.s
+#     $(AS) $< -o:$@
+
+# Default target
+all: {{HEADER_TARGETS}}
+
+# Example header generation rule (customize for your project):
+# $(OUTPUT_DIR)/{{HEADER_NAME}}_bin.h: {{BINARY_NAME}}.bin {{TEMPLATE_NAME}}.h
+# 	cp -f {{TEMPLATE_NAME}}.h $@
+# 	xxd -i $< | sed -e 's/^  */    /' >> $@
+
+# Example binary generation rule (customize for your project):
+# {{BINARY_NAME}}.bin: {{SOURCE_FILES}}
+# 	$(AS) $< -o:$@
+
+# Clean target
+clean:
+	rm -f *.bin
+	rm -f $(OUTPUT_DIR)/*_bin.h $(OUTPUT_DIR)/*_atari.h
+
+.PHONY: all clean

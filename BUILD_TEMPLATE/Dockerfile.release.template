@@ -1,0 +1,84 @@
+# Multi-stage Dockerfile for building {{PROJECT_NAME}} releases
+# Usage:
+#   docker build -f Dockerfile.release -t {{TARGET_NAME}}-builder .
+#   docker run --rm -v $(pwd)/{{RELEASE_DIR}}:/workspace/release {{TARGET_NAME}}-builder
+#
+# Configuration Variables (set via ARG or customize directly):
+#   TARGET_NAME     - Executable name (default: {{TARGET_NAME}})
+#   INCLUDE_DIRS    - Include directories (e.g., "-Iccan")
+#   CFLAGS          - Compiler flags (e.g., "-O3 -Wall -flto")
+#   LDLIBS          - Linker libraries (e.g., "-lm")
+#   BASE_IMAGE      - Base Docker image (default: ubuntu:22.04)
+
+ARG BASE_IMAGE=ubuntu:22.04
+FROM ${BASE_IMAGE} AS base
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+# Customize this list based on your project's needs
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    gcc-aarch64-linux-gnu \
+    mingw-w64 \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Copy source code
+COPY . .
+
+# Build stage for Linux amd64
+FROM base AS linux-amd64
+ARG TARGET_NAME={{TARGET_NAME}}
+ARG INCLUDE_DIRS={{INCLUDE_DIRS}}
+ARG CFLAGS={{CFLAGS}}
+ARG LDLIBS={{LDLIBS}}
+RUN make clean && \
+    make CC=gcc \
+         CFLAGS="$(INCLUDE_DIRS) $(CFLAGS)" \
+         LDLIBS="$(LDLIBS)" \
+         BDIR=build-linux-amd64 \
+         TARGET=build-linux-amd64/$(TARGET_NAME)
+
+# Build stage for Linux arm64
+FROM base AS linux-arm64
+ARG TARGET_NAME={{TARGET_NAME}}
+ARG INCLUDE_DIRS={{INCLUDE_DIRS}}
+ARG CFLAGS={{CFLAGS}}
+ARG LDLIBS={{LDLIBS}}
+RUN make clean && \
+    make CC=aarch64-linux-gnu-gcc \
+         CFLAGS="$(INCLUDE_DIRS) $(CFLAGS)" \
+         LDLIBS="$(LDLIBS)" \
+         BDIR=build-linux-arm64 \
+         TARGET=build-linux-arm64/$(TARGET_NAME)
+
+# Build stage for Windows x86_64
+FROM base AS windows-x86_64
+ARG TARGET_NAME={{TARGET_NAME}}
+ARG INCLUDE_DIRS={{INCLUDE_DIRS}}
+ARG CFLAGS={{CFLAGS}}
+ARG LDLIBS={{LDLIBS}}
+RUN make clean && \
+    make CC=x86_64-w64-mingw32-gcc \
+         CFLAGS="$(INCLUDE_DIRS) $(CFLAGS)" \
+         LDLIBS="$(LDLIBS)" \
+         BDIR=build-windows-x86_64 \
+         TARGET=build-windows-x86_64/$(TARGET_NAME).exe
+
+# Final stage to collect all binaries
+FROM base AS release
+ARG TARGET_NAME={{TARGET_NAME}}
+ARG RELEASE_DIR={{RELEASE_DIR}}
+COPY --from=linux-amd64 /workspace/build-linux-amd64/$(TARGET_NAME) /workspace/$(RELEASE_DIR)/$(TARGET_NAME)-linux-amd64
+COPY --from=linux-arm64 /workspace/build-linux-arm64/$(TARGET_NAME) /workspace/$(RELEASE_DIR)/$(TARGET_NAME)-linux-arm64
+COPY --from=windows-x86_64 /workspace/build-windows-x86_64/$(TARGET_NAME).exe /workspace/$(RELEASE_DIR)/$(TARGET_NAME)-windows-x86_64.exe
+
+RUN chmod +x /workspace/$(RELEASE_DIR)/$(TARGET_NAME)-linux-amd64 && \
+    chmod +x /workspace/$(RELEASE_DIR)/$(TARGET_NAME)-linux-arm64
+
+CMD ["ls", "-lh", "/workspace/$(RELEASE_DIR)/"]

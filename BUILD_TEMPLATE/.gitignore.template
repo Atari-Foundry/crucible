@@ -1,0 +1,41 @@
+# Build artifacts
+{{BUILD_DIR}}/
+{{RELEASE_DIR}}/
+build-*/
+
+# macOS SDK files (if using macOS cross-compilation)
+MacOSX.sdk.tar.xz
+MacOSX*.sdk.tar.xz
+*.sdk.tar.xz
+
+# macOS cross-compilation tools
+MACOS_XCOMP/
+
+# Editor directories
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.orig
+
+# Release tracking
+.last-changelog.md
+
+# Add project-specific ignore patterns below
+# Example:
+# *.o
+# *.a
+# *.so
+# *.dylib
+# *.dll

@@ -254,6 +254,20 @@ static int sim_SIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     else
         sim65_set_flags(s, SIM65_FLAG_N, 0);
+    
+    // Simulate RTS: pop return address from stack
+    // Stack grows downward. POP macro: increment SP, then read from 0x100+SP
+    // After JSR, SP points to location before return address
+    // To pop: SP++, read low byte; SP++, read high byte
+    unsigned sp = regs->s;
+    sp = (sp + 1) & 0xFF;
+    unsigned ret_lo = peek(s, 0x100 + sp);
+    sp = (sp + 1) & 0xFF;
+    unsigned ret_hi = peek(s, 0x100 + sp);
+    regs->pc = ret_lo | (ret_hi << 8);
+    regs->pc = (regs->pc + 1) & 0xFFFF;  // RTS adds 1 to return address
+    regs->s = sp;  // Update stack pointer (popped 2 bytes)
+    
     return 0;
 }
 
@@ -365,8 +379,12 @@ enum sim65_error atari_sio_boot(sim65 s)
     poke(s, 0xC, dosini & 0xFF);
     poke(s, 0xD, dosini >> 8);
     //  - Copy all 128 bytes to boot address, read rest of sectors
+    // Read boot sector data from $400 into a buffer first
+    uint8_t boot_data[128];
     for (int i = 0; i < 128; i++)
-        poke(s, bootad + i, peek(s, 0x400 + i));
+        boot_data[i] = peek(s, 0x400 + i);
+    // Then write the buffer to boot address (more reliable than poke in loop)
+    sim65_add_data_ram(s, bootad, boot_data, 128);
     //  - Read rest of sectors
     for (int n = 1; n < dcount; n++)
     {

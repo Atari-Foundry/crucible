@@ -1,0 +1,305 @@
+# Building {{PROJECT_NAME}}
+
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Quick Build](#quick-build)
+3. [Build Options](#build-options)
+4. [Platform-Specific Instructions](#platform-specific-instructions)
+5. [Troubleshooting](#troubleshooting)
+
+## Prerequisites
+
+### Required
+
+- **C Compiler**: GCC 4.8+ or compatible (Clang, MSVC)
+- **Make**: GNU Make 3.81+ or compatible
+- **Standard C Library**: POSIX-compliant C library
+{{#if LDLIBS}}
+- **Libraries**: {{LDLIBS}}
+{{/if}}
+
+### Optional
+
+- **Git**: For version control
+- **Debugger**: GDB or compatible for debugging
+- **Docker**: For cross-platform builds (macOS, etc.)
+
+## Quick Build
+
+### Standard Build
+
+```bash
+# Clone or download source
+cd {{PROJECT_NAME}}
+
+# Build
+make
+
+# Executable will be in {{BUILD_DIR}}/{{TARGET_NAME}}
+./{{BUILD_DIR}}/{{TARGET_NAME}} -h
+```
+
+### Clean Build
+
+```bash
+# Remove all build artifacts
+make clean
+
+# Rebuild
+make
+```
+
+## Build Options
+
+### Make Targets
+
+- `make` or `make all` - Build project (default)
+- `make clean` - Remove all build artifacts
+- `make help` - Show build system help
+{{#if TEST_TARGET}}
+- `make test` - Run automated tests
+{{/if}}
+- `make release` - Build release binaries for all platforms
+- `make github-release` - Build and create GitHub release (requires gh CLI)
+
+### Compiler Options
+
+The Makefile uses these default flags:
+
+```makefile
+CFLAGS = {{INCLUDE_DIRS}} {{CFLAGS}}
+LDLIBS = {{LDLIBS}}
+```
+
+**Flags Explained**:
+{{#if INCLUDE_DIRS}}
+- `{{INCLUDE_DIRS}}`: Include directories
+{{/if}}
+- Customize `CFLAGS` and `LDLIBS` in the Makefile or via command line
+
+### Custom Build Options
+
+#### Debug Build
+
+```bash
+make CFLAGS="-g -O0 -Wall"
+```
+
+#### Release Build (No Debug Symbols)
+
+```bash
+make CFLAGS="{{INCLUDE_DIRS}} -O3 -flto -DNDEBUG"
+```
+
+#### Custom Compiler
+
+```bash
+make CC=clang
+```
+
+## Build System Details
+
+### Directory Structure
+
+```
+{{PROJECT_NAME}}/
+├── {{BUILD_DIR}}/          # Build output (created)
+│   ├── obj/        # Object files
+│   └── {{TARGET_NAME}}    # Executable
+├── {{SRC_DIR}}/            # Source files
+└── Makefile        # Build configuration
+```
+
+### Source Files
+
+Source files are located in `{{SRC_DIR}}/`. The build system automatically discovers all `.c` files, or you can specify them explicitly in the Makefile.
+
+### Dependencies
+
+**External**:
+- Standard C library (`libc`)
+{{#if LDLIBS}}
+- Additional libraries: {{LDLIBS}}
+{{/if}}
+
+### Build Process
+
+1. **Compilation**: Each `.c` file compiled to `.o` object file
+2. **Linking**: All object files linked into executable
+3. **LTO**: Link-time optimization (if enabled) optimizes across files
+
+## Platform-Specific Instructions
+
+### Linux
+
+**Requirements**:
+- GCC or Clang
+- Make
+- Standard development tools
+
+**Build**:
+```bash
+make
+```
+
+**Install** (optional):
+```bash
+sudo cp {{BUILD_DIR}}/{{TARGET_NAME}} /usr/local/bin/
+```
+
+### macOS
+
+**Requirements**:
+- Xcode Command Line Tools
+- Make (included with Xcode)
+
+**Build**:
+```bash
+make
+```
+
+**Note**: May need to install Xcode Command Line Tools:
+```bash
+xcode-select --install
+```
+
+### Windows
+
+**Option 1: MinGW/MSYS2**
+
+```bash
+# Install MSYS2, then:
+pacman -S mingw-w64-x86_64-gcc make
+
+# Build
+make CC=x86_64-w64-mingw32-gcc
+```
+
+**Option 2: Visual Studio**
+
+1. Open Developer Command Prompt
+2. Navigate to source directory
+3. Use NMake or convert Makefile to Visual Studio project
+
+**Option 3: WSL (Windows Subsystem for Linux)**
+
+Use Linux build instructions in WSL environment.
+
+### Cross-Compilation
+
+**Example: Build for ARM**
+
+```bash
+make CC=arm-linux-gnueabihf-gcc
+```
+
+**Example: Build for 32-bit**
+
+```bash
+make CC=gcc CFLAGS="{{INCLUDE_DIRS}} -O3 -Wall -g -m32"
+```
+
+## Release Builds
+
+### Build All Platforms
+
+```bash
+make release
+```
+
+This builds binaries for:
+- Linux amd64
+- Linux arm64
+- Windows x86_64
+- macOS x86_64 (requires Docker)
+- macOS arm64 (requires Docker)
+
+### Create GitHub Release
+
+```bash
+# Build all platforms and create GitHub release
+make github-release
+
+# Or specify version
+make github-release VERSION=v1.2.3
+```
+
+**Prerequisites**:
+- Docker (for macOS builds)
+- GitHub CLI (`gh`) installed and authenticated
+- Cross-compilation tools (or Docker)
+
+## Troubleshooting
+
+### Build Errors
+
+#### "Command not found: gcc"
+
+**Solution**: Install GCC compiler
+- Linux: `sudo apt-get install gcc` (Debian/Ubuntu)
+- macOS: Install Xcode Command Line Tools
+- Windows: Install MinGW or use WSL
+
+#### "fatal error: header.h: No such file or directory"
+
+**Solution**: Check include paths in Makefile or set `INCLUDE_DIRS` variable
+
+#### "undefined reference to function"
+
+**Solution**: Check linker libraries in `LDLIBS` variable
+
+### Runtime Errors
+
+#### "can't open file"
+
+**Solution**: Check file path and permissions
+
+#### Segmentation Fault
+
+**Solution**: Build with debug symbols and use debugger
+```bash
+make CFLAGS="-g -O0 -Wall"
+gdb ./{{BUILD_DIR}}/{{TARGET_NAME}}
+```
+
+## Advanced Build Configuration
+
+### Custom Makefile Variables
+
+Edit `Makefile` or override on command line:
+
+```bash
+# Custom compiler
+make CC=clang
+
+# Custom flags
+make CFLAGS="{{INCLUDE_DIRS}} -O2 -Wall -g -DDEBUG"
+
+# Custom build directory
+make BDIR=output
+```
+
+### Separate Debug/Release Builds
+
+```bash
+# Debug build
+mkdir -p build-debug
+make BDIR=build-debug CFLAGS="{{INCLUDE_DIRS}} -g -O0 -Wall"
+
+# Release build
+mkdir -p build-release
+make BDIR=build-release CFLAGS="{{INCLUDE_DIRS}} -O3 -flto -Wall -DNDEBUG"
+```
+
+### Static Linking
+
+```bash
+make LDFLAGS="-static"
+```
+
+## See Also
+
+- [User Guide](USER_GUIDE.md) - Usage instructions
+- [Contributing Guide](../CONTRIBUTING.md) - Development guidelines
+- [CI/CD Documentation](CI_CD.md) - Continuous integration setup

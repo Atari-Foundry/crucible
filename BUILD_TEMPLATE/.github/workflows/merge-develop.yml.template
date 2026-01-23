@@ -1,0 +1,44 @@
+name: Merge {{DEVELOP_BRANCH}} to {{MAIN_BRANCH}}
+
+# This workflow automatically merges {{DEVELOP_BRANCH}} branch to {{MAIN_BRANCH}} after successful CI
+# Waits for the CI workflow to complete successfully
+#
+# Configuration:
+#   MAIN_BRANCH     - Main branch name (default: "main")
+#   DEVELOP_BRANCH  - Develop branch name (default: "develop")
+#   CI_WORKFLOW     - Name of CI workflow to wait for (default: "CI")
+
+on:
+  workflow_run:
+    workflows: ["{{CI_WORKFLOW}}"]
+    types:
+      - completed
+    branches:
+      - {{DEVELOP_BRANCH}}
+
+jobs:
+  merge-to-main:
+    name: Merge to {{MAIN_BRANCH}}
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == '{{DEVELOP_BRANCH}}' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Merge {{DEVELOP_BRANCH}} to {{MAIN_BRANCH}}
+      run: |
+        git checkout {{MAIN_BRANCH}}
+        git pull origin {{MAIN_BRANCH}}
+        git merge {{DEVELOP_BRANCH}} --no-edit -m "Auto-merge from {{DEVELOP_BRANCH}} branch [skip ci]"
+        git push origin {{MAIN_BRANCH}}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
